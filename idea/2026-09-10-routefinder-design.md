@@ -44,6 +44,14 @@ Two related ideas were considered and explicitly deferred to v2 because they req
 - **Algorithm**: A* (not plain Dijkstra) — same cost-tracking approach, but guided by a straight-line-distance-to-destination heuristic (converted to a best-case time) so it explores toward the goal instead of expanding equally in every direction. Necessary given the country-scale base graph.
 - **Query flow**: given origin, destination, and mode, filter/weight edges to only those allowed for that mode, then run A* to find the minimum-*time* path.
 
+### Traffic-aware routing (car & motorcycle, off-campus)
+
+Our own graph has no live traffic data — OSM is static, and neither is Google. Rather than approximate this ourselves, v1 splits routing by mode and location:
+
+- **Walk, bike, and everything on/around campus** (including the parking pilot and any future motorcycle-taxi queue feature) — always routed on our own OSM + campus-overlay graph via A*. This is where our own data is the value-add over Google.
+- **Car and motorcycle trips off-campus** — routed via the Google Routes API instead, since it has real-time traffic and we don't. Car uses the Advanced tier ($10/1K requests, real-time traffic); motorcycle needs the Preferred tier ($15/1K, required for two-wheeled-vehicle routing). Both have a free monthly allowance (5K–10K requests) that comfortably covers demo/early usage.
+- Accepted for v1/demo scale as-is. If usage grows enough to make Google's per-request cost material, Mapbox's Directions API (100K free requests/month, then $1.60–2/1K) is the cheaper drop-in alternative to revisit.
+
 ## Rewards system
 
 Core to the product pitch, not a bolt-on — designed in from v1.
