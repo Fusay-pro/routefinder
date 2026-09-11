@@ -1,9 +1,9 @@
-// TODO: replace with your actual university's bounding box.
+// Thammasat University Rangsit Center, from OSM (way 174967796).
 const CAMPUS_BOUNDS = {
-  minLat: 13.725,
-  maxLat: 13.735,
-  minLng: 100.775,
-  maxLng: 100.785,
+  minLat: 14.0656246,
+  maxLat: 14.079894,
+  minLng: 100.5928725,
+  maxLng: 100.6174686,
 };
 
 export function isWithinCampus(lat: number, lng: number): boolean {
