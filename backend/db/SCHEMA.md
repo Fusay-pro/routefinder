@@ -45,7 +45,7 @@ Search matches `places.canonical_name` or any `place_aliases.alias`, both lowerc
 |---|---|---|
 | id | uuid PK | |
 | user_id | uuid FK → users | |
-| mode | enum: `walk`, `bike`, `motorcycle`, `car` | |
+| travel_mode | enum: `walk`, `bike`, `motorcycle`, `car` | |
 | origin_place_id | uuid FK → places, nullable | null if user tapped the map |
 | origin_lat / origin_lng | double precision | always set |
 | destination_place_id | uuid FK → places, nullable | |

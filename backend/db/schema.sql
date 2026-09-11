@@ -54,7 +54,7 @@ CREATE INDEX idx_place_aliases_alias ON place_aliases (lower(alias));
 CREATE TABLE trips (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id               UUID NOT NULL REFERENCES users(id),
-    mode                  commute_mode NOT NULL,
+    travel_mode           commute_mode NOT NULL,
 
     origin_place_id       UUID REFERENCES places(id),      -- null if user tapped the map
     origin_lat            DOUBLE PRECISION NOT NULL,

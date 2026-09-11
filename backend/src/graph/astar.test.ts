@@ -20,9 +20,9 @@ test('finds the shortest-time path and ignores edges not allowed for the mode', 
   ];
 
   const edges: GraphEdge[] = [
-    { from: 'a', to: 'b', distanceMeters: 100, modes: ['walk'], speedKmh: { walk: 5 } },
-    { from: 'b', to: 'c', distanceMeters: 100, modes: ['walk'], speedKmh: { walk: 5 } },
-    { from: 'a', to: 'c', distanceMeters: 500, modes: ['car'], speedKmh: { car: 30 } },
+    { from: 'a', to: 'b', distanceMeters: 100, travelModes: ['walk'], speedKmh: { walk: 5 } },
+    { from: 'b', to: 'c', distanceMeters: 100, travelModes: ['walk'], speedKmh: { walk: 5 } },
+    { from: 'a', to: 'c', distanceMeters: 500, travelModes: ['car'], speedKmh: { car: 30 } },
   ];
 
   const result = findPath(graphWith(nodes, edges), 'a', 'c', 'walk');
@@ -41,10 +41,10 @@ test('picks the faster route by time, not the shorter one by distance', () => {
 
   const edges: GraphEdge[] = [
     // Direct but slow (e.g. a footpath).
-    { from: 'a', to: 'c', distanceMeters: 150, modes: ['bike'], speedKmh: { bike: 5 } },
+    { from: 'a', to: 'c', distanceMeters: 150, travelModes: ['bike'], speedKmh: { bike: 5 } },
     // Longer but much faster overall (e.g. a paved cycle route).
-    { from: 'a', to: 'b', distanceMeters: 100, modes: ['bike'], speedKmh: { bike: 30 } },
-    { from: 'b', to: 'c', distanceMeters: 100, modes: ['bike'], speedKmh: { bike: 30 } },
+    { from: 'a', to: 'b', distanceMeters: 100, travelModes: ['bike'], speedKmh: { bike: 30 } },
+    { from: 'b', to: 'c', distanceMeters: 100, travelModes: ['bike'], speedKmh: { bike: 30 } },
   ];
 
   const result = findPath(graphWith(nodes, edges), 'a', 'c', 'bike');
@@ -58,7 +58,7 @@ test('returns null when no path exists for the requested mode', () => {
     { id: 'a', lat: 0, lng: 0 },
     { id: 'b', lat: 0, lng: 0.001 },
   ];
-  const edges: GraphEdge[] = [{ from: 'a', to: 'b', distanceMeters: 100, modes: ['car'], speedKmh: { car: 30 } }];
+  const edges: GraphEdge[] = [{ from: 'a', to: 'b', distanceMeters: 100, travelModes: ['car'], speedKmh: { car: 30 } }];
 
   const result = findPath(graphWith(nodes, edges), 'a', 'b', 'walk');
 

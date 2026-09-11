@@ -11,7 +11,7 @@ export interface PathResult {
 // (it must never overestimate true remaining travel time).
 const FASTEST_MODE_KMH = 120;
 
-export function findPath(graph: Graph, startId: string, goalId: string, mode: Mode): PathResult | null {
+export function findPath(graph: Graph, startId: string, goalId: string, travelMode: Mode): PathResult | null {
   const start = graph.nodes.get(startId);
   const goal = graph.nodes.get(goalId);
   if (!start || !goal) return null;
@@ -43,8 +43,8 @@ export function findPath(graph: Graph, startId: string, goalId: string, mode: Mo
 
     const edges = graph.adjacency.get(current.id) ?? [];
     for (const edge of edges) {
-      if (!edge.modes.includes(mode)) continue;
-      const speedKmh = edge.speedKmh[mode];
+      if (!edge.travelModes.includes(travelMode)) continue;
+      const speedKmh = edge.speedKmh[travelMode];
       if (!speedKmh) continue;
 
       const edgeSeconds = (edge.distanceMeters / 1000 / speedKmh) * 3600;

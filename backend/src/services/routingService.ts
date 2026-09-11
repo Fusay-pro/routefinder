@@ -9,7 +9,7 @@ export interface RouteQuery {
   originLng: number;
   destLat: number;
   destLng: number;
-  mode: Mode;
+  travelMode: Mode;
 }
 
 export interface RouteResult {
@@ -21,13 +21,15 @@ export interface RouteResult {
 }
 
 export async function computeRoute(query: RouteQuery): Promise<RouteResult | null> {
-  const { mode, originLat, originLng, destLat, destLng } = query;
+  const { travelMode, originLat, originLng, destLat, destLng } = query;
 
   // Walk/bike and any campus-internal trip stay on our own graph — that's
   // where our data beats Google's. Off-campus car/motorcycle needs live
   // traffic we don't have, so it goes to the Google Routes API instead.
   const useOwnGraph =
-    mode === 'walk' || mode === 'bike' || (isWithinCampus(originLat, originLng) && isWithinCampus(destLat, destLng));
+    travelMode === 'walk' ||
+    travelMode === 'bike' ||
+    (isWithinCampus(originLat, originLng) && isWithinCampus(destLat, destLng));
 
   if (useOwnGraph) {
     const graph = loadGraph();
@@ -35,7 +37,7 @@ export async function computeRoute(query: RouteQuery): Promise<RouteResult | nul
     const destNodeId = nearestNodeId(graph, destLat, destLng);
     if (!originNodeId || !destNodeId) return null;
 
-    const result = findPath(graph, originNodeId, destNodeId, mode);
+    const result = findPath(graph, originNodeId, destNodeId, travelMode);
     if (!result) return null;
 
     return {
@@ -49,7 +51,7 @@ export async function computeRoute(query: RouteQuery): Promise<RouteResult | nul
     };
   }
 
-  const googleResult = await computeGoogleRoute(originLat, originLng, destLat, destLng, mode as 'car' | 'motorcycle');
+  const googleResult = await computeGoogleRoute(originLat, originLng, destLat, destLng, travelMode as 'car' | 'motorcycle');
   return {
     source: 'google',
     distanceMeters: googleResult.distanceMeters,

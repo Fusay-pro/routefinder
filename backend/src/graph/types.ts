@@ -10,7 +10,7 @@ export interface GraphEdge {
   from: string;
   to: string;
   distanceMeters: number;
-  modes: Mode[];
+  travelModes: Mode[];
   speedKmh: Partial<Record<Mode, number>>;
 }
 

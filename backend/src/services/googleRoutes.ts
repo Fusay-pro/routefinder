@@ -19,7 +19,7 @@ export async function computeGoogleRoute(
   originLng: number,
   destLat: number,
   destLng: number,
-  mode: 'car' | 'motorcycle'
+  travelMode: 'car' | 'motorcycle'
 ): Promise<GoogleRouteResult> {
   const apiKey = process.env.GOOGLE_ROUTES_API_KEY;
   if (!apiKey) {
@@ -36,7 +36,7 @@ export async function computeGoogleRoute(
     body: JSON.stringify({
       origin: { location: { latLng: { latitude: originLat, longitude: originLng } } },
       destination: { location: { latLng: { latitude: destLat, longitude: destLng } } },
-      travelMode: GOOGLE_TRAVEL_MODE[mode],
+      travelMode: GOOGLE_TRAVEL_MODE[travelMode],
       routingPreference: 'TRAFFIC_AWARE',
     }),
   });
