@@ -65,12 +65,22 @@ export async function loginWithGoogle(idToken: string) {
   if (!payload?.sub || !payload.email) {
     throw new Error('Google token did not include the expected profile fields');
   }
-  const { sub: googleId, email, name } = payload;
+  const { sub: googleId, email, email_verified: emailVerified, name } = payload;
 
   let user = await findUserByGoogleId(googleId);
   if (!user) {
     const existingByEmail = await findUserByEmail(email);
-    user = existingByEmail ? await linkGoogleId(existingByEmail.id, googleId) : await createUserWithGoogle(email, googleId, name ?? null);
+    if (existingByEmail) {
+      // Only trust the token's email for linking to an existing account if
+      // Google itself verified it — an unverified email claim shouldn't be
+      // enough to attach a new sign-in method to someone else's account.
+      if (!emailVerified) {
+        throw new Error('Google account email is not verified; sign in with password instead');
+      }
+      user = await linkGoogleId(existingByEmail.id, googleId);
+    } else {
+      user = await createUserWithGoogle(email, googleId, name ?? null);
+    }
   }
 
   return { user: toPublicUser(user), token: signToken(user.id) };

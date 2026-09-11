@@ -143,14 +143,15 @@ export interface RedemptionWithItem extends Redemption {
   catalogItemName: string;
 }
 
-export async function listRedemptionsForUser(userId: string): Promise<RedemptionWithItem[]> {
+export async function listRedemptionsForUser(userId: string, limit = 50): Promise<RedemptionWithItem[]> {
   const { rows } = await pool.query<RedemptionRow & { catalog_item_name: string }>(
     `SELECT r.id, r.user_id, r.catalog_item_id, r.points_spent, r.redeemed_at, c.name AS catalog_item_name
      FROM redemptions r
      JOIN redemption_catalog c ON c.id = r.catalog_item_id
      WHERE r.user_id = $1
-     ORDER BY r.redeemed_at DESC`,
-    [userId]
+     ORDER BY r.redeemed_at DESC
+     LIMIT $2`,
+    [userId, limit]
   );
   return rows.map((row) => ({ ...toRedemption(row), catalogItemName: row.catalog_item_name }));
 }

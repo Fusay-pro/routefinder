@@ -1,21 +1,12 @@
 import { Router } from 'express';
-import type { Mode } from '../graph/types.js';
 import { computeRoute } from '../services/routingService.js';
-
-const VALID_TRAVEL_MODES: Mode[] = ['walk', 'bike', 'motorcycle', 'car'];
+import { parseRouteRequestBody } from './routeRequest.js';
 
 export const routeRouter = Router();
 
 routeRouter.post('/route', async (req, res) => {
-  const { originLat, originLng, destLat, destLng, travelMode } = req.body ?? {};
-
-  if (
-    typeof originLat !== 'number' ||
-    typeof originLng !== 'number' ||
-    typeof destLat !== 'number' ||
-    typeof destLng !== 'number' ||
-    !VALID_TRAVEL_MODES.includes(travelMode)
-  ) {
+  const parsed = parseRouteRequestBody(req.body);
+  if (!parsed) {
     res.status(400).json({
       error: 'originLat, originLng, destLat, destLng (numbers) and travelMode (walk|bike|motorcycle|car) are required',
     });
@@ -23,7 +14,7 @@ routeRouter.post('/route', async (req, res) => {
   }
 
   try {
-    const result = await computeRoute({ originLat, originLng, destLat, destLng, travelMode });
+    const result = await computeRoute(parsed);
     if (!result) {
       res.status(404).json({ error: 'No route found' });
       return;

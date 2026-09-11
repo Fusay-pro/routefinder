@@ -42,7 +42,10 @@ export async function computeGoogleRoute(
   });
 
   if (!response.ok) {
-    throw new Error(`Google Routes API error: ${response.status} ${await response.text()}`);
+    // Log the raw upstream body server-side only — it can echo request
+    // details back, so it shouldn't be forwarded verbatim to API clients.
+    console.error(`Google Routes API error: ${response.status} ${await response.text()}`);
+    throw new Error('Google Routes API request failed');
   }
 
   const data = (await response.json()) as {

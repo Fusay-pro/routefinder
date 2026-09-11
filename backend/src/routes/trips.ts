@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import type { Mode } from '../graph/types.js';
 import { computeRoute } from '../services/routingService.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import {
@@ -11,31 +10,25 @@ import {
 } from '../db/tripsRepo.js';
 import { verifyTrip, traceDistanceMeters, traceDurationSeconds, type GpsPoint, type RoutePoint } from '../services/tripVerification.js';
 import { calculatePoints, DAILY_REWARD_TRIP_CAP } from '../services/rewardsService.js';
-
-const VALID_TRAVEL_MODES: Mode[] = ['walk', 'bike', 'motorcycle', 'car'];
+import { parseRouteRequestBody } from './routeRequest.js';
 
 export const tripsRouter = Router();
 
 // Start a trip: computes the suggested route (same engine as /route) and
 // persists it so /trips/:id/complete has something to verify a GPS trace against.
 tripsRouter.post('/trips', requireAuth, async (req, res) => {
-  const { originLat, originLng, destLat, destLng, travelMode, originPlaceId, destinationPlaceId } = req.body ?? {};
-
-  if (
-    typeof originLat !== 'number' ||
-    typeof originLng !== 'number' ||
-    typeof destLat !== 'number' ||
-    typeof destLng !== 'number' ||
-    !VALID_TRAVEL_MODES.includes(travelMode)
-  ) {
+  const parsed = parseRouteRequestBody(req.body);
+  if (!parsed) {
     res.status(400).json({
       error: 'originLat, originLng, destLat, destLng (numbers) and travelMode (walk|bike|motorcycle|car) are required',
     });
     return;
   }
+  const { originLat, originLng, destLat, destLng, travelMode } = parsed;
+  const { originPlaceId, destinationPlaceId } = req.body ?? {};
 
   try {
-    const routeResult = await computeRoute({ originLat, originLng, destLat, destLng, travelMode });
+    const routeResult = await computeRoute(parsed);
     if (!routeResult) {
       res.status(404).json({ error: 'No route found' });
       return;
