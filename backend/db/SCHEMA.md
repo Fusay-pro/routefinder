@@ -12,7 +12,8 @@ Note: the routing graph (nodes/edges from the OSM extract + hand-curated campus 
 |---|---|---|
 | id | uuid PK | |
 | email | text, unique | |
-| password_hash | text | |
+| password_hash | text, nullable | null for Google-only accounts |
+| google_id | text, unique, nullable | Google's account "sub" claim; null for email/password-only accounts |
 | display_name | text | |
 | role | enum: `user`, `admin` | admin needed for aliases/catalog/parking management |
 | points_balance | integer, ≥0 | |

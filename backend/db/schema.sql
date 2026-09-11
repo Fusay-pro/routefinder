@@ -16,12 +16,14 @@ CREATE TYPE user_role AS ENUM ('user', 'admin');
 CREATE TABLE users (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email           TEXT NOT NULL UNIQUE,
-    password_hash   TEXT NOT NULL,
+    password_hash   TEXT,                    -- null for Google-only accounts
+    google_id       TEXT UNIQUE,             -- Google's account "sub" claim, null for email/password-only accounts
     display_name    TEXT,
     role            user_role NOT NULL DEFAULT 'user',
     points_balance  INTEGER NOT NULL DEFAULT 0 CHECK (points_balance >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (password_hash IS NOT NULL OR google_id IS NOT NULL)
 );
 
 -- ─────────────────────────────────────────────

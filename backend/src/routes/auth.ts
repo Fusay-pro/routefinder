@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { signup, login, toPublicUser } from '../services/authService.js';
+import { signup, login, loginWithGoogle, toPublicUser } from '../services/authService.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { findUserById } from '../db/usersRepo.js';
 
@@ -37,6 +37,25 @@ authRouter.post('/auth/login', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(401).json({ error: err instanceof Error ? err.message : 'Login failed' });
+  }
+});
+
+// The client does the Google Sign-In flow itself and gets back an ID token;
+// this endpoint just verifies that token and issues our own session token,
+// same shape as /auth/signup and /auth/login.
+authRouter.post('/auth/google', async (req, res) => {
+  const { idToken } = req.body ?? {};
+
+  if (typeof idToken !== 'string' || !idToken) {
+    res.status(400).json({ error: 'idToken is required' });
+    return;
+  }
+
+  try {
+    const result = await loginWithGoogle(idToken);
+    res.json(result);
+  } catch (err) {
+    res.status(401).json({ error: err instanceof Error ? err.message : 'Google sign-in failed' });
   }
 });
 

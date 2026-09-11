@@ -1,6 +1,14 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { createUser, findUserByEmail, type User } from '../db/usersRepo.js';
+import { OAuth2Client } from 'google-auth-library';
+import {
+  createUserWithPassword,
+  createUserWithGoogle,
+  findUserByEmail,
+  findUserByGoogleId,
+  linkGoogleId,
+  type User,
+} from '../db/usersRepo.js';
 
 const SALT_ROUNDS = 10;
 const TOKEN_EXPIRY = '7d';
@@ -31,15 +39,40 @@ export async function signup(email: string, password: string, displayName: strin
     throw new Error('Email already registered');
   }
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-  const user = await createUser(email, passwordHash, displayName);
+  const user = await createUserWithPassword(email, passwordHash, displayName);
   return { user: toPublicUser(user), token: signToken(user.id) };
 }
 
 export async function login(email: string, password: string) {
   const user = await findUserByEmail(email);
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+  if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
     throw new Error('Invalid email or password');
   }
+  return { user: toPublicUser(user), token: signToken(user.id) };
+}
+
+// TODO(later): once you implement Google Sign-In on the client, it hands you
+// an ID token — pass that straight through to this function. GOOGLE_CLIENT_ID
+// must match the OAuth client ID configured on the Google Cloud side, since
+// verifyIdToken checks the token's audience against it.
+export async function loginWithGoogle(idToken: string) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) throw new Error('GOOGLE_CLIENT_ID is not configured');
+
+  const client = new OAuth2Client(clientId);
+  const ticket = await client.verifyIdToken({ idToken, audience: clientId });
+  const payload = ticket.getPayload();
+  if (!payload?.sub || !payload.email) {
+    throw new Error('Google token did not include the expected profile fields');
+  }
+  const { sub: googleId, email, name } = payload;
+
+  let user = await findUserByGoogleId(googleId);
+  if (!user) {
+    const existingByEmail = await findUserByEmail(email);
+    user = existingByEmail ? await linkGoogleId(existingByEmail.id, googleId) : await createUserWithGoogle(email, googleId, name ?? null);
+  }
+
   return { user: toPublicUser(user), token: signToken(user.id) };
 }
 
