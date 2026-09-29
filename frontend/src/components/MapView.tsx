@@ -1,41 +1,73 @@
 import { useEffect } from 'react';
-import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import type { LatLng, ParkingLotSummary } from '../api/types';
+import { Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
+import type { LatLng } from '../api/types';
 
 // Thammasat Rangsit, matching CAMPUS_BOUNDS in the backend's services/campus.ts.
 export const CAMPUS_CENTER: LatLng = { lat: 14.0727593, lng: 100.6051706 };
 
-const pinIcon = (color: string) =>
-  L.divIcon({
-    className: '',
-    html: `<span style="display:block;width:20px;height:20px;border-radius:9999px;background:${color};border:3px solid #fff;box-shadow:0 2px 6px rgba(19,27,46,.4)"></span>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-  });
+// Advanced markers need a map id. Google publishes DEMO_MAP_ID for development;
+// set a real one once the map has styling worth keeping.
+const MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID ?? 'DEMO_MAP_ID';
 
-const parkingIcon = (lot: ParkingLotSummary) => {
-  // A lot nobody is reporting on must not look like a lot that is simply full.
-  const known = lot.freeSpots + lot.occupiedSpots;
-  const border = known === 0 ? '#98a5a0' : lot.freeSpots > 0 ? '#10b981' : '#ba1a1a';
-  const dash = known === 0 ? 'border-style:dashed;' : '';
-  return L.divIcon({
-    className: '',
-    html: `<span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:#fff;border:2px solid ${border};${dash}font:700 13px Inter,sans-serif;color:${border}">P</span>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  });
-};
+function Pin({ color }: { color: string }) {
+  return (
+    <span
+      className="block h-5 w-5 rounded-full border-[3px] border-white"
+      style={{ background: color, boxShadow: '0 2px 6px rgba(19,27,46,.4)' }}
+    />
+  );
+}
+
+interface LineProps {
+  path: LatLng[];
+  color: string;
+  weight: number;
+  dashed?: boolean;
+  zIndex: number;
+}
+
+// google.maps.Polyline is imperative, so it's wrapped rather than rendered.
+// Re-created whenever the path changes, which is fine at route length.
+function Line({ path, color, weight, dashed, zIndex }: LineProps) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || path.length < 2) return;
+
+    const line = new google.maps.Polyline({
+      path,
+      zIndex,
+      strokeColor: color,
+      strokeWeight: dashed ? 0 : weight,
+      // A dashed line in Maps is a repeated symbol along an invisible stroke.
+      strokeOpacity: dashed ? 0 : 1,
+      icons: dashed
+        ? [
+            {
+              icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeWeight: weight, scale: 1 },
+              offset: '0',
+              repeat: '14px',
+            },
+          ]
+        : undefined,
+    });
+    line.setMap(map);
+    return () => line.setMap(null);
+  }, [map, path, color, weight, dashed, zIndex]);
+
+  return null;
+}
 
 function FitBounds({ points }: { points: LatLng[] }) {
   const map = useMap();
+
   useEffect(() => {
-    if (points.length < 2) return;
-    map.fitBounds(
-      points.map((p) => [p.lat, p.lng] as [number, number]),
-      { padding: [60, 60], maxZoom: 17 }
-    );
+    if (!map || points.length < 2) return;
+    const bounds = new google.maps.LatLngBounds();
+    points.forEach((point) => bounds.extend(point));
+    map.fitBounds(bounds, 60);
   }, [map, points]);
+
   return null;
 }
 
@@ -45,7 +77,6 @@ interface MapViewProps {
   origin?: LatLng | null;
   destination?: LatLng | null;
   current?: LatLng | null;
-  lots?: ParkingLotSummary[];
   className?: string;
 }
 
@@ -55,43 +86,49 @@ export function MapView({
   origin,
   destination,
   current,
-  lots = [],
   className = '',
 }: MapViewProps) {
-  const toTuple = (p: LatLng) => [p.lat, p.lng] as [number, number];
+  const inProgress = travelled.length > 1;
 
   return (
-    <MapContainer
-      center={toTuple(origin ?? CAMPUS_CENTER)}
-      zoom={16}
-      zoomControl={false}
-      attributionControl={false}
+    <Map
       className={className}
+      mapId={MAP_ID}
+      defaultCenter={origin ?? CAMPUS_CENTER}
+      defaultZoom={16}
+      disableDefaultUI
+      gestureHandling="greedy"
+      clickableIcons={false}
     >
-      <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19} />
+      {/* White casing under the route, so it reads against any basemap. */}
+      <Line path={route} color="#ffffff" weight={11} zIndex={1} />
+      {/* Once a trip is under way the planned route greys out behind the track. */}
+      <Line
+        path={route}
+        color={inProgress ? '#c3ccd4' : '#10b981'}
+        weight={6}
+        dashed={inProgress}
+        zIndex={2}
+      />
+      <Line path={travelled} color="#10b981" weight={7} zIndex={3} />
 
-      {route.length > 1 && (
-        <Polyline positions={route.map(toTuple)} pathOptions={{ color: '#ffffff', weight: 11 }} />
+      {origin && (
+        <AdvancedMarker position={origin}>
+          <Pin color="#4b41e1" />
+        </AdvancedMarker>
       )}
-      {route.length > 1 && (
-        <Polyline
-          positions={route.map(toTuple)}
-          pathOptions={{ color: travelled.length > 1 ? '#c3ccd4' : '#10b981', weight: 6, dashArray: travelled.length > 1 ? '9 7' : undefined }}
-        />
+      {destination && (
+        <AdvancedMarker position={destination}>
+          <Pin color="#006c49" />
+        </AdvancedMarker>
       )}
-      {travelled.length > 1 && (
-        <Polyline positions={travelled.map(toTuple)} pathOptions={{ color: '#10b981', weight: 7 }} />
+      {current && (
+        <AdvancedMarker position={current}>
+          <Pin color="#10b981" />
+        </AdvancedMarker>
       )}
 
-      {lots.map((lot) => (
-        <Marker key={lot.id} position={[lot.lat, lot.lng]} icon={parkingIcon(lot)} />
-      ))}
-
-      {origin && <Marker position={toTuple(origin)} icon={pinIcon('#4b41e1')} />}
-      {destination && <Marker position={toTuple(destination)} icon={pinIcon('#006c49')} />}
-      {current && <Marker position={toTuple(current)} icon={pinIcon('#10b981')} />}
-
-      <FitBounds points={route.length > 1 ? route : lots.map((l) => ({ lat: l.lat, lng: l.lng }))} />
-    </MapContainer>
+      <FitBounds points={route} />
+    </Map>
   );
 }

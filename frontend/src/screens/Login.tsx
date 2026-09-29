@@ -1,20 +1,27 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { api } from '../api/client';
+import { useApi } from '../api/hooks';
 
 export function Login() {
   const { login, signup } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [facultyId, setFacultyId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Public endpoint, so the picker is populated before anyone has an account.
+  const faculties = useApi(() => api.faculties(), []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await (mode === 'login' ? login(email, password) : signup(email, password));
+      await (mode === 'login' ? login(email, password) : signup(email, password, displayName, facultyId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not sign in');
     } finally {
@@ -27,7 +34,7 @@ export function Login() {
       <div className="mb-8 flex flex-col gap-1.5">
         <h1 className="text-[30px] font-extrabold tracking-tight text-primary">RouteFinder</h1>
         <p className="font-label text-[13px] text-on-surface-variant">
-          Get across Thammasat Rangsit faster, and earn points for walking or biking.
+          Walk, run or cycle across Thammasat Rangsit. Every trip counts for you and your faculty.
         </p>
       </div>
 
@@ -43,6 +50,43 @@ export function Login() {
             placeholder="you@dome.tu.ac.th"
           />
         </label>
+
+        {mode === 'signup' && (
+          <>
+            <label className="flex flex-col gap-1.5">
+              <span className="font-label text-[11px] font-bold tracking-wide text-outline">
+                DISPLAY NAME
+              </span>
+              <input
+                required
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="h-12 rounded-xl border border-outline-variant bg-surface-lowest px-3.5 text-[15px] outline-none focus:border-primary-container"
+                placeholder="What the leaderboard shows"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="font-label text-[11px] font-bold tracking-wide text-outline">FACULTY</span>
+              <select
+                required
+                value={facultyId}
+                onChange={(e) => setFacultyId(e.target.value)}
+                className="h-12 rounded-xl border border-outline-variant bg-surface-lowest px-3.5 text-[15px] outline-none focus:border-primary-container"
+              >
+                <option value="">Pick your faculty…</option>
+                {faculties.data?.map((faculty) => (
+                  <option key={faculty.id} value={faculty.id}>
+                    {faculty.name}
+                  </option>
+                ))}
+              </select>
+              <span className="font-label text-[11px] text-outline">
+                You compete for this faculty. Changing it later needs an admin&apos;s approval.
+              </span>
+            </label>
+          </>
+        )}
 
         <label className="flex flex-col gap-1.5">
           <span className="font-label text-[11px] font-bold tracking-wide text-outline">PASSWORD</span>

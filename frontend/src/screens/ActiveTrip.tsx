@@ -10,7 +10,7 @@ import { CoinIcon, LocateIcon, MODE_ICON, StopIcon } from '../components/icons';
 
 // Comfortably inside the backend's plausible-speed band for each mode
 // (SPEED_RANGE_KMH in services/tripVerification.ts).
-const SIM_SPEED_KMH: Record<Mode, number> = { walk: 4.8, bike: 14, motorcycle: 40, car: 40 };
+const SIM_SPEED_KMH: Record<Mode, number> = { walk: 4.8, run: 10, bike: 14, motorcycle: 40, car: 40 };
 
 export function ActiveTrip() {
   const navigate = useNavigate();

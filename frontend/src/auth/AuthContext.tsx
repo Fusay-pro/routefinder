@@ -5,7 +5,7 @@ import type { User } from '../api/types';
 interface AuthValue {
   user: User | null;
   loading: boolean;
-  signup: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, displayName: string, facultyId: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -38,8 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       loading,
-      signup: async (email, password) => {
-        const result = await api.signup(email, password);
+      signup: async (email, password, displayName, facultyId) => {
+        const result = await api.signup(email, password, displayName, facultyId);
         setToken(result.token);
         setUser(result.user);
       },

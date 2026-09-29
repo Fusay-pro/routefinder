@@ -1,20 +1,22 @@
 import { api } from '../api/client';
 import { useApi } from '../api/hooks';
 import type { Trip } from '../api/types';
-import { dayLabel, km, timeOfDay } from '../lib/format';
+import { co2, dayLabel, km, timeOfDay } from '../lib/format';
 import { MODE_ICON } from '../components/icons';
 import { VerificationBadge } from '../components/VerificationBadge';
 
 export function Activity() {
   const trips = useApi(() => api.trips(), []);
 
+  // Distance covered, not distance planned — and CO2 as the headline, since
+  // that's what the boards rank. Older trips have no actual distance recorded.
   const totals = (trips.data ?? []).reduce(
     (acc, trip) => ({
       count: acc.count + 1,
-      meters: acc.meters + trip.distanceMeters,
-      points: acc.points + trip.pointsAwarded,
+      meters: acc.meters + (trip.actualDistanceMeters ?? 0),
+      grams: acc.grams + (trip.co2SavedGrams ?? 0),
     }),
-    { count: 0, meters: 0, points: 0 }
+    { count: 0, meters: 0, grams: 0 }
   );
 
   const groups = (trips.data ?? []).reduce<Record<string, Trip[]>>((acc, trip) => {
@@ -32,7 +34,7 @@ export function Activity() {
       <div className="mx-4 mb-3.5 flex justify-between rounded-2xl border border-outline-variant bg-surface-lowest p-3.5">
         <Total label="TRIPS" value={String(totals.count)} />
         <Total label="DISTANCE" value={km(totals.meters)} />
-        <Total label="EARNED" value={String(totals.points)} accent />
+        <Total label="CO₂ AVOIDED" value={co2(totals.grams)} accent />
       </div>
 
       {trips.loading && <p className="px-4 font-label text-xs text-outline">Loading trips…</p>}
@@ -78,7 +80,7 @@ function Total({ label, value, accent }: { label: string; value: string; accent?
 
 function TripRow({ trip }: { trip: Trip }) {
   const Icon = MODE_ICON[trip.travelMode];
-  const earned = trip.pointsAwarded > 0;
+  const counted = (trip.scoringDistanceMeters ?? 0) > 0;
   const tint =
     trip.verificationStatus === 'verified'
       ? 'bg-success-container text-on-primary-container'
@@ -98,14 +100,12 @@ function TripRow({ trip }: { trip: Trip }) {
         <div className="flex items-center gap-1.5">
           <VerificationBadge status={trip.verificationStatus} />
           <span className="font-label text-[11px] text-on-surface-variant">
-            {km(trip.distanceMeters)} · {timeOfDay(trip.startedAt)}
+            {km(trip.actualDistanceMeters ?? trip.distanceMeters)} · {timeOfDay(trip.startedAt)}
           </span>
         </div>
       </div>
-      <span
-        className={`font-label text-sm font-bold ${earned ? 'text-primary' : 'text-outline'}`}
-      >
-        {earned ? `+${trip.pointsAwarded}` : '0'}
+      <span className={`font-label text-sm font-bold ${counted ? 'text-primary' : 'text-outline'}`}>
+        {counted ? co2(trip.co2SavedGrams ?? 0) : '—'}
       </span>
     </div>
   );

@@ -44,3 +44,16 @@ export function dayLabel(iso: string): string {
   if (sameDay(date, yesterday)) return 'Yesterday';
   return date.toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
+
+// Grams up to a kilo, then kilos. A 400m walk saving "0.07 kg" reads as
+// nothing; "68 g" reads as something.
+export function co2(grams: number): string {
+  if (grams < 1000) return `${Math.round(grams)} g`;
+  return `${(grams / 1000).toFixed(grams < 10000 ? 2 : 1)} kg`;
+}
+
+export function ordinal(rank: number): string {
+  const rem100 = rank % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${rank}th`;
+  return `${rank}${['th', 'st', 'nd', 'rd'][rank % 10] ?? 'th'}`;
+}

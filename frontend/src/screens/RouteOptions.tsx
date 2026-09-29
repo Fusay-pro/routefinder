@@ -3,19 +3,36 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Mode, RouteResult } from '../api/types';
 import { useJourney } from '../trip/JourneyContext';
-import { km, minutes } from '../lib/format';
-import { ArrowRightIcon, BackIcon, CoinIcon, MODE_ICON } from '../components/icons';
+import { co2, km, minutes } from '../lib/format';
+import { ArrowRightIcon, BackIcon, LeafIcon, MODE_ICON } from '../components/icons';
 
 type Entry = { route: RouteResult | null; loading: boolean; error: string | null };
 
-const EAGER: Mode[] = ['walk', 'bike'];
+// The three that score run on our own graph and cost nothing, so they load up
+// front. Car and motorcycle can hit the paid Google Routes API and earn nothing
+// anyway, so they stay behind a tap.
+const EAGER: Mode[] = ['walk', 'run', 'bike'];
 const ON_DEMAND: Mode[] = ['car', 'motorcycle'];
+
+// Grams of CO2 a car would have emitted over the same distance — mirrors
+// CAR_GRAMS_PER_KM in the backend's services/co2Service.ts. Duplicated rather
+// than fetched because it's a constant the estimate needs before a trip exists;
+// the number the user is finally credited always comes from the server.
+const CAR_GRAMS_PER_KM = 170;
+const SAVES_EMISSIONS: Record<Mode, boolean> = {
+  walk: true,
+  run: true,
+  bike: true,
+  motorcycle: false,
+  car: false,
+};
 
 const LABEL: Record<Mode, { title: string; sub: string }> = {
   walk: { title: 'Walk', sub: 'Campus paths' },
+  run: { title: 'Run', sub: 'Same paths, faster' },
   bike: { title: 'Bike', sub: 'Your own bike' },
-  car: { title: 'Drive', sub: 'Park and walk in' },
-  motorcycle: { title: 'Motorcycle', sub: 'Park and walk in' },
+  car: { title: 'Drive', sub: 'Counts for nothing' },
+  motorcycle: { title: 'Motorcycle', sub: 'Counts for nothing' },
 };
 
 export function RouteOptions() {
@@ -44,8 +61,6 @@ export function RouteOptions() {
     [origin, destination]
   );
 
-  // Walk and bike run on our own graph and cost nothing, so they load up front.
-  // Car and motorcycle can hit the paid Google Routes API, so they wait for a tap.
   useEffect(() => {
     EAGER.forEach(load);
   }, [load]);
@@ -129,7 +144,7 @@ export function RouteOptions() {
 function ModeGlyph({ mode }: { mode: Mode }) {
   const Icon = MODE_ICON[mode];
   const tint =
-    mode === 'walk'
+    mode === 'walk' || mode === 'run'
       ? 'bg-success-container text-on-primary-container'
       : mode === 'bike'
         ? 'bg-secondary-fixed text-on-secondary-fixed-variant'
@@ -155,7 +170,8 @@ function ModeCard({
   onRetry: () => void;
 }) {
   const route = entry?.route;
-  const earns = (route?.estimatedPoints ?? 0) > 0;
+  const earns = SAVES_EMISSIONS[mode];
+  const saved = route && earns ? (route.distanceMeters / 1000) * CAR_GRAMS_PER_KM : 0;
 
   return (
     <div
@@ -198,17 +214,17 @@ function ModeCard({
               earns ? 'bg-success-container' : 'bg-surface-low'
             }`}
           >
-            <CoinIcon size={17} className={earns ? 'text-on-primary-container' : 'text-outline'} />
+            <LeafIcon size={17} className={earns ? 'text-on-primary-container' : 'text-outline'} />
             <span
               className={`font-label text-[13px] font-bold ${
                 earns ? 'text-on-primary-container' : 'text-outline'
               }`}
             >
-              {earns ? `Earn ${route.estimatedPoints} points` : 'No points for this mode'}
+              {earns ? `Saves ${co2(saved)} of CO₂` : 'Counts for nothing'}
             </span>
             {earns && (
               <span className="flex-grow text-right font-label text-[11px] font-medium text-on-surface-variant">
-                if GPS verifies
+                +{route.estimatedPoints} pts if verified
               </span>
             )}
           </div>

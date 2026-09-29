@@ -1,7 +1,6 @@
-export type Mode = 'walk' | 'bike' | 'motorcycle' | 'car';
+export type Mode = 'walk' | 'run' | 'bike' | 'motorcycle' | 'car';
 export type TripStatus = 'in_progress' | 'completed' | 'abandoned';
 export type VerificationStatus = 'unverified' | 'verified' | 'flagged_review' | 'rejected';
-export type ParkingStatus = 'free' | 'occupied' | 'unknown';
 
 export interface User {
   id: string;
@@ -9,6 +8,29 @@ export interface User {
   displayName: string | null;
   role: 'user' | 'admin';
   pointsBalance: number;
+  facultyId: string | null;
+}
+
+export interface Faculty {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export type FacultyChangeStatus = 'pending' | 'approved' | 'rejected';
+
+export interface FacultyChangeRequest {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userDisplayName: string | null;
+  currentFacultyName: string | null;
+  requestedFacultyId: string;
+  requestedFacultyName: string;
+  note: string | null;
+  status: FacultyChangeStatus;
+  createdAt: string;
+  resolvedAt: string | null;
 }
 
 export interface AuthResult {
@@ -54,39 +76,62 @@ export interface Trip {
   status: TripStatus;
   verificationStatus: VerificationStatus;
   pointsAwarded: number;
+  // What actually happened, from the GPS trace. Null until the trip completes
+  // with a usable trace — distanceMeters above is what was *planned*.
+  actualDistanceMeters: number | null;
+  actualDurationSeconds: number | null;
+  // The part of actualDistanceMeters that counted, after the campus geofence
+  // and daily caps. Zero on a trip that verified but didn't qualify.
+  scoringDistanceMeters: number | null;
+  co2SavedGrams: number | null;
   startedAt: string;
   endedAt: string | null;
 }
 
-export interface ParkingLotSummary {
-  id: string;
+export type BoardMetric = 'distance' | 'co2';
+export type BoardActivity = 'foot' | 'cycle';
+export type BoardWindow = 'week' | 'month' | 'all';
+export type BoardScope = 'individual' | 'faculty';
+
+export interface IndividualRow {
+  rank: number;
+  userId: string;
+  displayName: string | null;
+  facultyName: string | null;
+  facultySlug: string | null;
+  value: number;
+  tripCount: number;
+}
+
+export interface FacultyRow {
+  rank: number;
+  facultyId: string;
   name: string;
-  lat: number;
-  lng: number;
-  permitTier: string | null;
-  totalSpots: number;
-  freeSpots: number;
-  occupiedSpots: number;
-  unknownSpots: number;
-  lastUpdated: string | null;
+  slug: string;
+  totalValue: number;
+  valuePerMember: number;
+  activeMembers: number;
+  tripCount: number;
 }
 
-export interface ParkingSpot {
-  id: string;
-  label: string;
-  level: string | null;
-  lat: number;
-  lng: number;
-  status: ParkingStatus;
-  lastUpdated: string;
+export interface BoardResponse<Row> {
+  scope: BoardScope;
+  metric: BoardMetric;
+  activity: BoardActivity;
+  window: BoardWindow;
+  rankBy?: 'per_member' | 'total';
+  rows: Row[];
 }
 
-export interface CurrentWeather {
-  temperatureC: number;
-  condition: string;
-  description: string;
-  isBikeFriendly: boolean;
-  advice: string;
+export interface MyStanding {
+  metric: BoardMetric;
+  activity: BoardActivity;
+  window: BoardWindow;
+  /** Null when you have no scoring trips in this window — unranked, not last. */
+  rank: number | null;
+  value: number;
+  tripCount: number;
+  totalRanked: number;
 }
 
 export interface CatalogItem {

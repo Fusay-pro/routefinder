@@ -1,11 +1,17 @@
 import type {
   AuthResult,
+  BoardActivity,
+  BoardMetric,
+  BoardResponse,
+  BoardWindow,
   CatalogItem,
-  CurrentWeather,
+  Faculty,
+  FacultyChangeRequest,
+  FacultyRow,
   GpsPoint,
+  IndividualRow,
   Mode,
-  ParkingLotSummary,
-  ParkingSpot,
+  MyStanding,
   Place,
   Redemption,
   RouteResult,
@@ -64,9 +70,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 const post = <T>(path: string, body: unknown) =>
   request<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
+export interface BoardQuery {
+  metric: BoardMetric;
+  activity: BoardActivity;
+  window: BoardWindow;
+}
+
+const boardParams = (query: BoardQuery, extra: Record<string, string> = {}) =>
+  new URLSearchParams({ ...query, ...extra }).toString();
+
 export const api = {
-  signup: (email: string, password: string, displayName?: string) =>
-    post<AuthResult>('/auth/signup', { email, password, displayName }),
+  // displayName and facultyId are required: the first is what leaderboards
+  // show, and without the second you can't appear on a faculty board.
+  signup: (email: string, password: string, displayName: string, facultyId: string) =>
+    post<AuthResult>('/auth/signup', { email, password, displayName, facultyId }),
   login: (email: string, password: string) => post<AuthResult>('/auth/login', { email, password }),
   me: () => request<User>('/auth/me'),
 
@@ -93,11 +110,16 @@ export const api = {
   completeTrip: (id: string, gpsTrace: GpsPoint[]) => post<Trip>(`/trips/${id}/complete`, { gpsTrace }),
   trips: () => request<Trip[]>('/trips'),
 
-  parkingLots: () => request<ParkingLotSummary[]>('/parking-lots'),
-  lotSpots: (id: string) =>
-    request<{ lot: ParkingLotSummary; spots: ParkingSpot[] }>(`/parking-lots/${id}/spots`),
+  individualBoard: (query: BoardQuery) =>
+    request<BoardResponse<IndividualRow>>(`/leaderboard?${boardParams(query, { scope: 'individual' })}`),
+  facultyBoard: (query: BoardQuery) =>
+    request<BoardResponse<FacultyRow>>(`/leaderboard?${boardParams(query, { scope: 'faculty' })}`),
+  myStanding: (query: BoardQuery) => request<MyStanding>(`/leaderboard/me?${boardParams(query)}`),
 
-  weather: () => request<CurrentWeather>('/weather'),
+  faculties: () => request<Faculty[]>('/faculties'),
+  myFacultyRequest: () => request<FacultyChangeRequest | null>('/faculty-change-requests/me'),
+  requestFacultyChange: (facultyId: string, note: string) =>
+    post<FacultyChangeRequest>('/faculty-change-requests', { facultyId, note }),
 
   catalog: () => request<CatalogItem[]>('/redemptions/catalog'),
   redeem: (catalogItemId: string) =>

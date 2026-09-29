@@ -3,21 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApi } from '../api/hooks';
 import type { Place } from '../api/types';
-import { useAuth } from '../auth/AuthContext';
 import { useJourney, type Endpoint } from '../trip/JourneyContext';
 import { MapView, CAMPUS_CENTER } from '../components/MapView';
-import { ParkingLotCard } from '../components/ParkingLotCard';
-import { WeatherPill } from '../components/WeatherPill';
-import { ArrowRightIcon, CoinIcon, DotIcon, LocateIcon, PinIcon, SearchIcon } from '../components/icons';
+import { co2, km, ordinal } from '../lib/format';
+import { ArrowRightIcon, DotIcon, LeafIcon, LocateIcon, PinIcon, SearchIcon } from '../components/icons';
 
 export function Explore() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { origin, destination, setOrigin, setDestination } = useJourney();
 
-  const lots = useApi(() => api.parkingLots(), []);
-  // Weather is best-effort: a missing API key must not take the screen down.
-  const weather = useApi(() => api.weather().catch(() => null), []);
+  // The landing screen leads with where you stand this week, so the reason to
+  // walk somewhere is visible before you pick anywhere to walk to.
+  const distance = useApi(() => api.myStanding({ metric: 'distance', activity: 'foot', window: 'week' }), []);
+  const saved = useApi(() => api.myStanding({ metric: 'co2', activity: 'foot', window: 'week' }), []);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Place[]>([]);
@@ -58,16 +56,9 @@ export function Explore() {
     setResults([]);
   }
 
-  const firstLot = lots.data?.[0];
-
   return (
     <div className="relative h-full overflow-hidden bg-map">
-      <MapView
-        className="absolute inset-0 h-full w-full"
-        origin={origin}
-        destination={destination}
-        lots={lots.data ?? []}
-      />
+      <MapView className="absolute inset-0 h-full w-full" origin={origin} destination={destination} />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2 p-3.5">
         <div className="pointer-events-auto flex flex-col gap-0.5 rounded-[18px] bg-surface-lowest p-3 shadow-float">
@@ -113,16 +104,17 @@ export function Explore() {
         </div>
 
         <div className="flex gap-2">
-          <div className="pointer-events-auto">
-            <WeatherPill weather={weather.data ?? null} />
-          </div>
           <span className="flex-grow" />
-          <div className="pointer-events-auto flex h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 shadow-chip">
-            <CoinIcon size={15} className="text-primary-fixed" />
+          <button
+            type="button"
+            onClick={() => navigate('/leaderboard')}
+            className="pointer-events-auto flex h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 shadow-chip"
+          >
+            <LeafIcon size={15} className="text-primary-fixed" />
             <span className="font-label text-[13px] font-bold text-white">
-              {user?.pointsBalance ?? 0}
+              {saved.data ? co2(saved.data.value) : '—'}
             </span>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -136,21 +128,38 @@ export function Explore() {
         </div>
 
         <div className="flex flex-col gap-3 px-4 pt-3">
-          {lots.loading && <p className="font-label text-xs text-outline">Loading parking…</p>}
-          {lots.error && (
-            <p className="font-label text-xs text-on-error-container">Parking unavailable</p>
-          )}
-          {firstLot && <ParkingLotCard lot={firstLot} />}
-          {lots.data?.length === 0 && (
-            <p className="font-label text-xs text-outline">No parking lots configured yet.</p>
-          )}
+          <button
+            type="button"
+            onClick={() => navigate('/leaderboard')}
+            className="flex items-center gap-3 rounded-2xl border border-outline-variant bg-surface-lowest p-3.5 text-left"
+          >
+            <div className="flex-grow">
+              <p className="font-label text-[11px] font-bold uppercase tracking-wider text-outline">
+                On foot this week
+              </p>
+              <p className="text-lg font-extrabold tabular-nums text-on-surface">
+                {distance.data ? km(distance.data.value) : '—'}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-label text-[11px] text-outline">
+                {distance.data &&
+                  (distance.data.rank === null
+                    ? 'Unranked'
+                    : `${ordinal(distance.data.rank)} of ${distance.data.totalRanked}`)}
+              </p>
+              <p className="font-label text-xs font-bold text-on-primary-container">
+                {saved.data ? `${co2(saved.data.value)} saved` : ''}
+              </p>
+            </div>
+          </button>
 
           <button
             disabled={!destination}
             onClick={() => navigate('/routes')}
-            className="flex h-[50px] items-center justify-center gap-2 rounded-2xl bg-primary-container text-base font-bold text-on-primary-container disabled:bg-surface-highest disabled:text-outline"
+            className="mb-1 flex h-[50px] items-center justify-center gap-2 rounded-2xl bg-primary-container text-base font-bold text-on-primary-container disabled:bg-surface-highest disabled:text-outline"
           >
-            {destination ? 'Get directions' : 'Pick a destination'}
+            {destination ? 'Go' : 'Pick a destination'}
             {destination && <ArrowRightIcon size={18} />}
           </button>
         </div>

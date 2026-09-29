@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { VerificationStatus } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useJourney } from '../trip/JourneyContext';
-import { km, minutes, paceKmh } from '../lib/format';
+import { co2, km, minutes, paceKmh } from '../lib/format';
 import { AlertIcon, CheckIcon, CrossIcon } from '../components/icons';
 
 const OUTCOME: Record<
@@ -59,6 +59,14 @@ export function TripComplete() {
 
   const outcome = OUTCOME[finishedTrip.verificationStatus];
   const earned = finishedTrip.pointsAwarded;
+  const saved = finishedTrip.co2SavedGrams ?? 0;
+  // Distance actually covered, falling back to the plan for a trip that never
+  // produced a usable trace.
+  const covered = finishedTrip.actualDistanceMeters ?? finishedTrip.distanceMeters;
+  // A verified trip can still score nothing: off campus, too short, or past a
+  // daily cap. Saying so beats leaving someone to guess why they got zero.
+  const refused =
+    finishedTrip.verificationStatus === 'verified' && (finishedTrip.scoringDistanceMeters ?? 0) === 0;
   const durationSeconds = finishedTrip.endedAt
     ? (new Date(finishedTrip.endedAt).getTime() - new Date(finishedTrip.startedAt).getTime()) / 1000
     : 0;
@@ -93,43 +101,53 @@ export function TripComplete() {
             earned > 0 ? 'text-on-primary-container' : 'text-outline'
           }`}
         >
-          POINTS EARNED
+          CO₂ AVOIDED
         </span>
         <span
           className={`text-[46px] font-extrabold leading-[52px] tracking-tight ${
             earned > 0 ? 'text-on-primary-container' : 'text-outline'
           }`}
         >
-          {earned > 0 ? `+${earned}` : '0'}
+          {co2(saved)}
         </span>
         <span
           className={`font-label text-xs font-semibold ${
             earned > 0 ? 'text-on-primary-container' : 'text-outline'
           }`}
         >
-          Balance now {user?.pointsBalance ?? 0}
+          {earned > 0 ? `+${earned} points · balance ${user?.pointsBalance ?? 0}` : 'No points for this trip'}
         </span>
       </div>
 
       <div className="mx-4 mt-4 rounded-2xl border border-outline-variant bg-surface-lowest px-4">
         <Row label="Route" value={`${origin?.name ?? 'Start'} → ${destination?.name ?? 'End'}`} />
-        <Row label="Distance" value={km(finishedTrip.distanceMeters)} />
+        <Row label="Distance" value={km(covered)} />
         <Row label="Time" value={minutes(durationSeconds)} />
         <Row
           label="Average pace"
-          value={`${paceKmh(finishedTrip.distanceMeters, durationSeconds)} km/h`}
+          value={`${paceKmh(covered, durationSeconds)} km/h`}
           last
         />
       </div>
+
+      {refused && (
+        <p className="mx-4 mt-3 rounded-2xl bg-surface-c px-4 py-3 font-label text-[11px] leading-relaxed text-on-surface-variant">
+          This one didn&apos;t count toward the boards — trips have to start and finish on campus, be at
+          least 250m apart end to end, and fall inside your daily limit.
+        </p>
+      )}
 
       <div className="flex flex-grow" />
 
       <div className="flex flex-col gap-2.5 px-4 pb-6 pt-4">
         <button
-          onClick={() => navigate('/rewards')}
+          onClick={() => {
+            done();
+            navigate('/leaderboard');
+          }}
           className="flex h-[52px] items-center justify-center rounded-2xl bg-primary-container text-base font-bold text-on-primary-container"
         >
-          Spend points
+          See the leaderboard
         </button>
         <button
           onClick={done}

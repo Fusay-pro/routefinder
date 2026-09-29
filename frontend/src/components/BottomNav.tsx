@@ -1,11 +1,13 @@
 import { NavLink } from 'react-router-dom';
-import { ActivityIcon, ExploreIcon, RewardsIcon, RoutesIcon } from './icons';
+import { ActivityIcon, ExploreIcon, LeaderboardIcon, ProfileIcon } from './icons';
 
+// Leaderboard sits second, not first: you have to go somewhere before a board
+// means anything, so Go stays the landing tab.
 const TABS = [
-  { to: '/', label: 'Explore', Icon: ExploreIcon, end: true },
-  { to: '/routes', label: 'Routes', Icon: RoutesIcon, end: false },
-  { to: '/rewards', label: 'Rewards', Icon: RewardsIcon, end: false },
+  { to: '/', label: 'Go', Icon: ExploreIcon, end: true },
+  { to: '/leaderboard', label: 'Board', Icon: LeaderboardIcon, end: false },
   { to: '/activity', label: 'Activity', Icon: ActivityIcon, end: false },
+  { to: '/profile', label: 'Profile', Icon: ProfileIcon, end: false },
 ];
 
 export function BottomNav() {

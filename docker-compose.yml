@@ -28,11 +28,9 @@ services:
       # Dev default so the stack runs out of the box. Set a real one in .env
       # before this is reachable by anyone else — it signs session tokens.
       JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-change-me}
-      SENSOR_API_KEY: ${SENSOR_API_KEY:-dev-only-sensor-key}
-      # All optional. Without them: driving routes off campus, the weather pill
-      # and route elevation degrade cleanly; everything else works.
+      # Both optional. Without them, off-campus driving routes and route
+      # elevation degrade cleanly; everything the competition needs still works.
       GOOGLE_ROUTES_API_KEY: ${GOOGLE_ROUTES_API_KEY:-}
-      GOOGLE_WEATHER_API_KEY: ${GOOGLE_WEATHER_API_KEY:-}
       GOOGLE_ELEVATION_API_KEY: ${GOOGLE_ELEVATION_API_KEY:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     depends_on:
@@ -41,7 +39,12 @@ services:
     restart: unless-stopped
 
   web:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Without a key the app still runs; the map area just stays blank.
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        VITE_GOOGLE_MAPS_MAP_ID: ${VITE_GOOGLE_MAPS_MAP_ID:-}
     ports:
       - '${WEB_PORT:-8080}:80'
     depends_on:
