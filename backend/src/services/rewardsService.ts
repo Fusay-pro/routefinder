@@ -1,9 +1,11 @@
 import type { Mode } from '../graph/types.js';
 
-// Flat rate by mode and distance, per the design spec. Motorcycle/car earn
-// nothing — rewards exist to nudge people toward walking/biking.
+// Flat rate by mode and distance. Motorcycle/car earn nothing — the app exists
+// to move trips off them. Running pays more than walking over the same ground
+// because it's the same distance for more effort.
 const POINTS_PER_KM: Record<Mode, number> = {
   walk: 10,
+  run: 12,
   bike: 5,
   motorcycle: 0,
   car: 0,

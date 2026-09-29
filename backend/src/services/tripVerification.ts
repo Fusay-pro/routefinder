@@ -17,6 +17,7 @@ const ADHERENCE_MIN_RATIO = 0.8; // "most" of the trace must stay near the sugge
 
 const SPEED_RANGE_KMH: Record<Mode, [number, number]> = {
   walk: [2, 7],
+  run: [7, 20],
   bike: [5, 25],
   motorcycle: [10, 80],
   car: [5, 100],

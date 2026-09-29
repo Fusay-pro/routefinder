@@ -1,12 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import { routeRouter } from './routes/route.js';
-import { parkingRouter } from './routes/parking.js';
-import { weatherRouter } from './routes/weather.js';
 import { authRouter } from './routes/auth.js';
 import { tripsRouter } from './routes/trips.js';
 import { placesRouter } from './routes/places.js';
 import { redemptionsRouter } from './routes/redemptions.js';
+import { leaderboardRouter } from './routes/leaderboard.js';
+import { facultiesRouter } from './routes/faculties.js';
 
 const app = express();
 
@@ -21,12 +21,12 @@ app.get('/health', (_req, res) => {
 });
 
 app.use(routeRouter);
-app.use(parkingRouter);
-app.use(weatherRouter);
 app.use(authRouter);
 app.use(tripsRouter);
 app.use(placesRouter);
 app.use(redemptionsRouter);
+app.use(leaderboardRouter);
+app.use(facultiesRouter);
 
 const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {

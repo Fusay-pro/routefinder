@@ -5,11 +5,13 @@ import {
   createTrip,
   findTripById,
   listTripsForUser,
-  countVerifiedTripsToday,
+  scoredTodayForUser,
   completeTripAndAwardPoints,
 } from '../db/tripsRepo.js';
 import { verifyTrip, traceDistanceMeters, traceDurationSeconds, type GpsPoint, type RoutePoint } from '../services/tripVerification.js';
-import { calculatePoints, DAILY_REWARD_TRIP_CAP } from '../services/rewardsService.js';
+import { calculatePoints } from '../services/rewardsService.js';
+import { scoringDecision } from '../services/scoringRules.js';
+import { co2SavedGrams } from '../services/co2Service.js';
 import { parseRouteRequestBody } from './routeRequest.js';
 
 export const tripsRouter = Router();
@@ -106,6 +108,10 @@ tripsRouter.post('/trips/:id/complete', requireAuth, async (req, res) => {
         verificationStatus: 'unverified',
         pointsAwarded: 0,
         gpsTrace: gpsTrace ?? null,
+        actualDistanceMeters: null,
+        actualDurationSeconds: null,
+        scoringDistanceMeters: null,
+        co2SavedGrams: null,
       });
       res.json(updated);
       return;
@@ -119,23 +125,42 @@ tripsRouter.post('/trips/:id/complete', requireAuth, async (req, res) => {
 
     const outcome = verifyTrip(gpsTrace, routePath, trip.travelMode, distanceMeters, durationSeconds);
 
-    let pointsAwarded = 0;
+    // Two separate questions: does the trace look real (verifyTrip, above), and
+    // is a real trip the kind the competition rewards (scoringRules). A genuine
+    // walk to the shops off campus is verified but doesn't score.
+    let scoringDistanceMeters = 0;
     if (outcome === 'verified') {
-      const tripsToday = await countVerifiedTripsToday(userId);
-      if (tripsToday < DAILY_REWARD_TRIP_CAP) {
-        pointsAwarded = calculatePoints(trip.travelMode, distanceMeters);
-      }
+      const today = await scoredTodayForUser(userId);
+      scoringDistanceMeters = scoringDecision({
+        originLat: trip.originLat,
+        originLng: trip.originLng,
+        destLat: trip.destinationLat,
+        destLng: trip.destinationLng,
+        actualDistanceMeters: distanceMeters,
+        tripsScoredToday: today.trips,
+        distanceScoredTodayMeters: today.distanceMeters,
+      }).scoringDistanceMeters;
     }
 
     const updated = await completeTripAndAwardPoints(trip.id, userId, {
       status: 'completed',
       verificationStatus: outcome,
-      pointsAwarded,
+      pointsAwarded: calculatePoints(trip.travelMode, scoringDistanceMeters),
       gpsTrace,
+      actualDistanceMeters: distanceMeters,
+      actualDurationSeconds: durationSeconds,
+      scoringDistanceMeters,
+      co2SavedGrams: co2SavedGrams(trip.travelMode, scoringDistanceMeters),
     });
 
     res.json(updated);
   } catch (err) {
+    // Raised by the `status = 'in_progress'` guard when a concurrent request
+    // completed this trip first — same answer as the check at the top.
+    if (err instanceof Error && err.message === 'trip_not_in_progress') {
+      res.status(409).json({ error: 'Trip is already completed' });
+      return;
+    }
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to complete trip' });
   }
 });

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { signup, login, loginWithGoogle, toPublicUser } from '../services/authService.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { findUserById } from '../db/usersRepo.js';
+import { findFacultyById } from '../db/facultiesRepo.js';
 
 export const authRouter = Router();
 
@@ -9,15 +10,26 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 authRouter.post('/auth/signup', async (req, res) => {
-  const { email, password, displayName } = req.body ?? {};
+  const { email, password, displayName, facultyId } = req.body ?? {};
 
   if (typeof email !== 'string' || !EMAIL_RE.test(email) || typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
     res.status(400).json({ error: `A valid email and a password of at least ${MIN_PASSWORD_LENGTH} characters are required` });
     return;
   }
 
+  const name = typeof displayName === 'string' ? displayName.trim() : '';
+  if (!name) {
+    res.status(400).json({ error: 'displayName is required — it is what the leaderboards show' });
+    return;
+  }
+
+  if (typeof facultyId !== 'string' || !(await findFacultyById(facultyId))) {
+    res.status(400).json({ error: 'facultyId is required and must be one of GET /faculties' });
+    return;
+  }
+
   try {
-    const result = await signup(email, password, typeof displayName === 'string' ? displayName : null);
+    const result = await signup(email, password, name, facultyId);
     res.status(201).json(result);
   } catch (err) {
     res.status(409).json({ error: err instanceof Error ? err.message : 'Signup failed' });

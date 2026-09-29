@@ -97,3 +97,31 @@ test('returns unverified for a trace too short to judge', () => {
   const outcome = verifyTrip([walkAt(13.73, 100.78, 0)], ROUTE, 'walk', 0, 0);
   assert.equal(outcome, 'unverified');
 });
+
+test('verifies a run at a plausible running pace', () => {
+  const distance = traceDistanceMeters([
+    { lat: 13.73, lng: 100.78, t: '' },
+    { lat: 13.7305, lng: 100.781, t: '' },
+    { lat: 13.7298, lng: 100.7815, t: '' },
+  ]);
+  const durationSeconds = (distance / 1000 / 11) * 3600; // ~11 km/h, mid-range for a run
+
+  const trace: GpsPoint[] = [
+    walkAt(13.73, 100.78, 0),
+    walkAt(13.7305, 100.781, durationSeconds / 2),
+    walkAt(13.7298, 100.7815, durationSeconds),
+  ];
+
+  assert.equal(verifyTrip(trace, ROUTE, 'run', distance, durationSeconds), 'verified');
+});
+
+test('a walking pace claimed as a run is rejected, and vice versa', () => {
+  const distance = 1000;
+  const walkingSeconds = (distance / 1000 / 4) * 3600; // 4 km/h — under the run floor of 7
+  const runningSeconds = (distance / 1000 / 12) * 3600; // 12 km/h — over the walk ceiling of 7
+
+  const trace: GpsPoint[] = [walkAt(13.73, 100.78, 0), walkAt(13.7298, 100.7815, 60)];
+
+  assert.equal(verifyTrip(trace, null, 'run', distance, walkingSeconds), 'rejected');
+  assert.equal(verifyTrip(trace, null, 'walk', distance, runningSeconds), 'rejected');
+});

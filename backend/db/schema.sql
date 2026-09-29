@@ -1,17 +1,30 @@
--- RouteFinder v1 — PostgreSQL schema
+-- Campus eco-commute competition — PostgreSQL schema
 -- Note: the routing graph (nodes/edges from OSM + campus overlay) is NOT stored here.
 -- It's built into an in-memory structure loaded by each backend instance at boot.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto; -- for gen_random_uuid()
 
-CREATE TYPE commute_mode AS ENUM ('walk', 'bike', 'motorcycle', 'car');
+CREATE TYPE commute_mode AS ENUM ('walk', 'run', 'bike', 'motorcycle', 'car');
 CREATE TYPE trip_status AS ENUM ('in_progress', 'completed', 'abandoned');
 CREATE TYPE verification_status AS ENUM ('unverified', 'verified', 'flagged_review', 'rejected');
-CREATE TYPE parking_status AS ENUM ('free', 'occupied', 'unknown');
 CREATE TYPE user_role AS ENUM ('user', 'admin');
+CREATE TYPE faculty_change_status AS ENUM ('pending', 'approved', 'rejected');
 
 -- ─────────────────────────────────────────────
--- users — auth + points balance
+-- faculties — the unit the faculty leaderboard ranks
+-- ─────────────────────────────────────────────
+CREATE TABLE faculties (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL,
+    slug        TEXT NOT NULL UNIQUE,        -- stable id for the UI, e.g. 'engineering'
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ─────────────────────────────────────────────
+-- users — auth, faculty membership, points wallet
+--
+-- points_balance is a *wallet*: redemptions draw it down, so it is not and can
+-- never be a leaderboard score. Boards aggregate trips instead.
 -- ─────────────────────────────────────────────
 CREATE TABLE users (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,10 +34,36 @@ CREATE TABLE users (
     display_name    TEXT,
     role            user_role NOT NULL DEFAULT 'user',
     points_balance  INTEGER NOT NULL DEFAULT 0 CHECK (points_balance >= 0),
+    faculty_id      UUID REFERENCES faculties(id) ON DELETE SET NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK (password_hash IS NOT NULL OR google_id IS NOT NULL)
 );
+
+CREATE INDEX idx_users_faculty_id ON users (faculty_id);
+
+-- ─────────────────────────────────────────────
+-- faculty_change_requests — moving faculty needs an admin's approval
+--
+-- Users pick a faculty at signup but can't reassign themselves afterwards: the
+-- faculty board is a competition between groups, so self-service switching
+-- would let people stack whichever side is winning.
+-- ─────────────────────────────────────────────
+CREATE TABLE faculty_change_requests (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id               UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    requested_faculty_id  UUID NOT NULL REFERENCES faculties(id) ON DELETE CASCADE,
+    note                  TEXT,                    -- the user's justification, e.g. a student id
+    status                faculty_change_status NOT NULL DEFAULT 'pending',
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_by           UUID REFERENCES users(id),
+    resolved_at           TIMESTAMPTZ
+);
+
+CREATE INDEX idx_faculty_change_requests_status ON faculty_change_requests (status);
+-- One open request per user at a time; resolved ones are kept as history.
+CREATE UNIQUE INDEX idx_faculty_change_requests_one_pending
+    ON faculty_change_requests (user_id) WHERE status = 'pending';
 
 -- ─────────────────────────────────────────────
 -- places — campus buildings/POIs, searchable by nickname
@@ -75,6 +114,18 @@ CREATE TABLE trips (
     verification_status   verification_status NOT NULL DEFAULT 'unverified',
     points_awarded        INTEGER NOT NULL DEFAULT 0,
 
+    -- What actually happened, derived from gps_trace at completion. Distinct
+    -- from distance_meters/estimated_seconds above, which are what was *planned*.
+    -- Every leaderboard reads these, never the planned figures — otherwise the
+    -- boards would rank people on routes they asked for rather than distance
+    -- they covered. Null until the trip completes with a usable trace.
+    actual_distance_meters   DOUBLE PRECISION,
+    actual_duration_seconds  DOUBLE PRECISION,
+    -- The part of actual_distance_meters that counted, after the campus
+    -- geofence and daily caps in services/scoringRules.ts.
+    scoring_distance_meters  DOUBLE PRECISION,
+    co2_saved_grams          DOUBLE PRECISION,
+
     started_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
     ended_at              TIMESTAMPTZ,
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -82,6 +133,11 @@ CREATE TABLE trips (
 
 CREATE INDEX idx_trips_user_id ON trips (user_id);
 CREATE INDEX idx_trips_status ON trips (status);
+-- Every leaderboard query is a time-window scan over verified trips, and the
+-- daily caps re-read today's verified trips on every completion. Partial, since
+-- nothing else is ever aggregated.
+CREATE INDEX idx_trips_leaderboard ON trips (started_at) WHERE verification_status = 'verified';
+CREATE INDEX idx_trips_user_started ON trips (user_id, started_at);
 
 -- ─────────────────────────────────────────────
 -- redemption_catalog / redemptions — points economy
@@ -105,32 +161,3 @@ CREATE TABLE redemptions (
 );
 
 CREATE INDEX idx_redemptions_user_id ON redemptions (user_id);
-
--- ─────────────────────────────────────────────
--- parking_lots / parking_spots — sensors report per spot, the API aggregates
--- per lot. A spot whose sensor has gone quiet counts as unknown, not free —
--- see SENSOR_STALE_AFTER in src/db/parkingLotsRepo.ts.
--- ─────────────────────────────────────────────
-CREATE TABLE parking_lots (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name         TEXT NOT NULL,
-    lat          DOUBLE PRECISION NOT NULL,
-    lng          DOUBLE PRECISION NOT NULL,
-    permit_tier  TEXT,                      -- e.g. 'A', 'A/B'; null = no permit required
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE parking_spots (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    lot_id        UUID REFERENCES parking_lots(id) ON DELETE SET NULL,
-    label         TEXT NOT NULL,
-    level         TEXT,                      -- e.g. 'L2'; null for surface lots
-    lat           DOUBLE PRECISION NOT NULL,
-    lng           DOUBLE PRECISION NOT NULL,
-    status        parking_status NOT NULL DEFAULT 'unknown',
-    last_updated  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_parking_spots_lot_id ON parking_spots (lot_id);

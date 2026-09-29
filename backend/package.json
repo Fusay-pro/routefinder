@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json && mkdir -p dist/graph/data && cp src/graph/data/campusGraph.json dist/graph/data/campusGraph.json",
     "start": "node dist/index.js",
-    "test": "tsx --test src/graph/astar.test.ts src/graph/geo.test.ts src/services/tripVerification.test.ts src/services/weatherService.test.ts",
+    "test": "tsx --test src/graph/astar.test.ts src/graph/geo.test.ts src/services/tripVerification.test.ts src/services/co2Service.test.ts src/services/scoringRules.test.ts",
     "db:migrate": "psql \"$DATABASE_URL\" -f db/schema.sql",
     "db:seed": "psql \"$DATABASE_URL\" -f db/seed.sql",
     "import:graph": "tsx scripts/importOsmGraph.ts"

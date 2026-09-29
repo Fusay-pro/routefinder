@@ -32,11 +32,13 @@ export interface RouteResult {
 export async function computeRoute(query: RouteQuery): Promise<RouteResult | null> {
   const { travelMode, originLat, originLng, destLat, destLng } = query;
 
-  // Walk/bike and any campus-internal trip stay on our own graph — that's
-  // where our data beats Google's. Off-campus car/motorcycle needs live
-  // traffic we don't have, so it goes to the Google Routes API instead.
+  // Human-powered modes and any campus-internal trip stay on our own graph —
+  // that's where our data beats Google's, and a scoring trip's path is what
+  // verification checks the GPS trace against. Off-campus car/motorcycle needs
+  // live traffic we don't have, so it goes to the Google Routes API instead.
   const useOwnGraph =
     travelMode === 'walk' ||
+    travelMode === 'run' ||
     travelMode === 'bike' ||
     (isWithinCampus(originLat, originLng) && isWithinCampus(destLat, destLng));
 

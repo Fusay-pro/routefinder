@@ -10,6 +10,7 @@ export interface User {
   displayName: string | null;
   role: UserRole;
   pointsBalance: number;
+  facultyId: string | null;
 }
 
 interface UserRow {
@@ -20,9 +21,10 @@ interface UserRow {
   display_name: string | null;
   role: UserRole;
   points_balance: number;
+  faculty_id: string | null;
 }
 
-const SELECT_COLUMNS = 'id, email, password_hash, google_id, display_name, role, points_balance';
+const SELECT_COLUMNS = 'id, email, password_hash, google_id, display_name, role, points_balance, faculty_id';
 
 function toUser(row: UserRow): User {
   return {
@@ -33,23 +35,44 @@ function toUser(row: UserRow): User {
     displayName: row.display_name,
     role: row.role,
     pointsBalance: row.points_balance,
+    facultyId: row.faculty_id,
   };
 }
 
-export async function createUserWithPassword(email: string, passwordHash: string, displayName: string | null): Promise<User> {
+export async function createUserWithPassword(
+  email: string,
+  passwordHash: string,
+  displayName: string,
+  facultyId: string
+): Promise<User> {
   const { rows } = await pool.query<UserRow>(
-    `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3) RETURNING ${SELECT_COLUMNS}`,
-    [email, passwordHash, displayName]
+    `INSERT INTO users (email, password_hash, display_name, faculty_id) VALUES ($1, $2, $3, $4)
+     RETURNING ${SELECT_COLUMNS}`,
+    [email, passwordHash, displayName, facultyId]
   );
   return toUser(rows[0]);
 }
 
+// Google sign-in gives us a name but never a faculty, so a Google-created
+// account starts without one and is prompted to pick before it can appear on a
+// faculty board. See routes/faculties.ts.
 export async function createUserWithGoogle(email: string, googleId: string, displayName: string | null): Promise<User> {
   const { rows } = await pool.query<UserRow>(
     `INSERT INTO users (email, google_id, display_name) VALUES ($1, $2, $3) RETURNING ${SELECT_COLUMNS}`,
     [email, googleId, displayName]
   );
   return toUser(rows[0]);
+}
+
+// Only ever called for a user who has no faculty yet — changing an existing one
+// goes through the admin-approved request flow in db/facultiesRepo.ts.
+export async function setInitialFaculty(userId: string, facultyId: string): Promise<User | null> {
+  const { rows } = await pool.query<UserRow>(
+    `UPDATE users SET faculty_id = $1, updated_at = now()
+      WHERE id = $2 AND faculty_id IS NULL RETURNING ${SELECT_COLUMNS}`,
+    [facultyId, userId]
+  );
+  return rows[0] ? toUser(rows[0]) : null;
 }
 
 export async function linkGoogleId(userId: string, googleId: string): Promise<User> {

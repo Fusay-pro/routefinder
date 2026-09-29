@@ -1,4 +1,4 @@
-export type Mode = 'walk' | 'bike' | 'motorcycle' | 'car';
+export type Mode = 'walk' | 'run' | 'bike' | 'motorcycle' | 'car';
 
 export interface GraphNode {
   id: string;

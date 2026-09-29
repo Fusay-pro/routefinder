@@ -30,16 +30,20 @@ export function toPublicUser(user: User) {
     displayName: user.displayName,
     role: user.role,
     pointsBalance: user.pointsBalance,
+    facultyId: user.facultyId,
   };
 }
 
-export async function signup(email: string, password: string, displayName: string | null) {
+// Display name and faculty are required here, not optional: both are needed
+// the moment this user appears on a board, and a board that falls back to
+// showing email addresses would leak them to everyone on campus.
+export async function signup(email: string, password: string, displayName: string, facultyId: string) {
   const existing = await findUserByEmail(email);
   if (existing) {
     throw new Error('Email already registered');
   }
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-  const user = await createUserWithPassword(email, passwordHash, displayName);
+  const user = await createUserWithPassword(email, passwordHash, displayName, facultyId);
   return { user: toPublicUser(user), token: signToken(user.id) };
 }
 

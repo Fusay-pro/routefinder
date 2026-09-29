@@ -1,6 +1,6 @@
 import type { Mode } from '../graph/types.js';
 
-export const VALID_TRAVEL_MODES: Mode[] = ['walk', 'bike', 'motorcycle', 'car'];
+export const VALID_TRAVEL_MODES: Mode[] = ['walk', 'run', 'bike', 'motorcycle', 'car'];
 
 export interface RouteRequestBody {
   originLat: number;
