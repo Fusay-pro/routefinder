@@ -1,8 +1,9 @@
 // Rebuilds backend/src/graph/data/campusGraph.json from OpenStreetMap.
 //
 // Usage:
-//   npx tsx scripts/importOsmGraph.ts                 fetch live from Overpass
-//   npx tsx scripts/importOsmGraph.ts --input raw.json reuse a cached Overpass response (no network)
+//   npx tsx scripts/importOsmGraph.ts                    fetch live from Overpass
+//   npx tsx scripts/importOsmGraph.ts --input raw.json   reuse a cached Overpass response (no network)
+//   npx tsx scripts/importOsmGraph.ts --skip-elevation   don't call the Elevation API (no key needed)
 //
 // Area covered: Thammasat University Rangsit campus plus a ~3km buffer, which
 // is as far as it's realistic to route someone on foot or by bike. Farther
@@ -120,6 +121,45 @@ function buildGraph(ways: OverpassWay[]): CompactGraphData {
   return { profiles, nodes, edges };
 }
 
+// Google caps a single Elevation request at 512 locations; 500 keeps the URL
+// comfortably inside limits while still being ~64 requests for the whole graph.
+const ELEVATION_BATCH_SIZE = 500;
+
+interface ElevationResponse {
+  status: string;
+  results?: { elevation: number }[];
+  error_message?: string;
+}
+
+// Fills in the third tuple slot on each node, in place. Elevation is reported
+// per route, never routed on — A* stays purely time-based.
+async function addElevations(graph: CompactGraphData): Promise<void> {
+  const apiKey = process.env.GOOGLE_ELEVATION_API_KEY;
+  if (!apiKey) {
+    throw new Error('GOOGLE_ELEVATION_API_KEY is not configured (use --skip-elevation to build without it)');
+  }
+
+  for (let start = 0; start < graph.nodes.length; start += ELEVATION_BATCH_SIZE) {
+    const batch = graph.nodes.slice(start, start + ELEVATION_BATCH_SIZE);
+    const url = new URL('https://maps.googleapis.com/maps/api/elevation/json');
+    url.searchParams.set('key', apiKey);
+    url.searchParams.set('locations', batch.map(([lat, lng]) => `${lat},${lng}`).join('|'));
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Elevation request failed: ${res.status} ${await res.text()}`);
+
+    const data = (await res.json()) as ElevationResponse;
+    if (data.status !== 'OK' || !data.results) {
+      throw new Error(`Elevation request failed: ${data.status} ${data.error_message ?? ''}`);
+    }
+
+    data.results.forEach((result, i) => {
+      graph.nodes[start + i][2] = Math.round(result.elevation * 10) / 10;
+    });
+    console.log(`  elevation ${Math.min(start + ELEVATION_BATCH_SIZE, graph.nodes.length)}/${graph.nodes.length}`);
+  }
+}
+
 async function main() {
   const inputFlagIndex = process.argv.indexOf('--input');
   const ways =
@@ -128,6 +168,13 @@ async function main() {
       : await fetchOverpass();
 
   const graph = buildGraph(ways);
+
+  if (process.argv.includes('--skip-elevation')) {
+    console.log('Skipping elevation lookup — routes will report no elevation gain/loss.');
+  } else {
+    await addElevations(graph);
+  }
+
   const outPath = new URL('../src/graph/data/campusGraph.json', import.meta.url);
   await writeFile(outPath, JSON.stringify(graph));
   console.log(`Wrote ${graph.nodes.length} nodes, ${graph.edges.length} directed edges from ${ways.length} ways to ${outPath.pathname}`);

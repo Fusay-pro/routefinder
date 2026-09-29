@@ -22,7 +22,10 @@ npm run dev            # tsx watch, no build step
 | `JWT_SECRET` | yes, for any auth route | signs/verifies session tokens |
 | `GOOGLE_CLIENT_ID` | for `/auth/google` | must match the OAuth client the frontend uses |
 | `GOOGLE_ROUTES_API_KEY` | for off-campus car/motorcycle routing | Advanced tier for car, Preferred tier for motorcycle (two-wheeler) |
+| `GOOGLE_WEATHER_API_KEY` | for `GET /weather` | separate from the Routes key so each can be API-restricted in Google Cloud |
+| `GOOGLE_ELEVATION_API_KEY` | for `npm run import:graph` only | not needed at runtime; pass `--skip-elevation` to import without it |
 | `SENSOR_API_KEY` | for parking status updates | shared key, fine for the one-sensor pilot |
+| `CORS_ORIGIN` | no | comma-separated allow-list of browser origins; defaults to `http://localhost:5173` |
 
 Missing a required var doesn't crash the server at boot — the route that needs it fails cleanly at request time (e.g. `POST /auth/google` returns 401 "GOOGLE_CLIENT_ID is not configured" rather than 500 or a startup crash).
 
@@ -34,17 +37,21 @@ Missing a required var doesn't crash the server at boot — the route that needs
 
 `GraphNode`/`GraphEdge` live in [`src/graph/types.ts`](./src/graph/types.ts); the A\* implementation is a plain array-based open set (fine at this graph size — see the comment in `astar.ts` about swapping to a binary heap if the graph ever goes country-wide).
 
+Own-graph routes also report `elevationGainMeters` / `elevationLossMeters`, summed from per-node elevations by `elevationDelta` in [`src/graph/geo.ts`](./src/graph/geo.ts). Elevation is **display-only** — A\*'s cost stays purely time-based. Node elevations are populated by the import script via the Google Elevation API and are optional: until `npm run import:graph` is re-run with `GOOGLE_ELEVATION_API_KEY` set, routes simply report zero gain/loss and nothing else changes.
+
 **Auth** ([`src/services/authService.ts`](./src/services/authService.ts), [`src/routes/auth.ts`](./src/routes/auth.ts)) — email/password (bcrypt) or Google Sign-In (ID token verified server-side against `GOOGLE_CLIENT_ID`), both issuing the same JWT. Google sign-in links to an existing email account with the same address if one exists, otherwise creates a new user. `password_hash` and `google_id` are both nullable in `users` — exactly one must be set (DB `CHECK` constraint).
 
 **Trips & verification** ([`src/routes/trips.ts`](./src/routes/trips.ts), [`src/services/tripVerification.ts`](./src/services/tripVerification.ts)) — starting a trip persists the suggested route so completing it can check the recorded GPS trace against three heuristics: path adherence (≥80% of points within 25m of the route line), plausible speed for the claimed mode, and a "suspiciously smooth" step-length check that flags (doesn't reject) traces too uniform to be a real GPS track. Outcomes: `verified` (awards points), `flagged_review`, `rejected`, or `unverified` (trace too short/missing — e.g. app closed mid-trip). These are hand-tuned heuristics, not ML — see the backlog doc for why a classifier is deferred until there's labeled data.
 
-**Rewards** ([`src/services/rewardsService.ts`](./src/services/rewardsService.ts)) — flat points per km by mode (walk 10, bike 5, motorcycle/car 0 — the whole point is nudging people away from vehicles), capped at 5 verified trips/day per user to bound farming. Points are credited and the trip row updated in one transaction ([`completeTripAndAwardPoints`](./src/db/tripsRepo.ts)).
+**Rewards** ([`src/services/rewardsService.ts`](./src/services/rewardsService.ts)) — flat points per km by mode (walk 10, bike 5, motorcycle/car 0 — the whole point is nudging people away from vehicles), capped at 5 verified trips/day per user to bound farming. `/route` and `/trips` both return `estimatedPoints` so the UI can show what a trip is worth before it starts without reimplementing the formula client-side; it's what the trip earns *if* it verifies, and deliberately ignores the daily cap, since `/route` is public and the cap is per-user. Points are credited and the trip row updated in one transaction ([`completeTripAndAwardPoints`](./src/db/tripsRepo.ts)).
 
 **Redemptions** ([`src/db/redemptionsRepo.ts`](./src/db/redemptionsRepo.ts), [`src/routes/redemptions.ts`](./src/routes/redemptions.ts)) — spend points on admin-curated catalog items. The deduction is a single guarded `UPDATE ... WHERE points_balance >= point_cost`, not a read-then-write, so it can't go negative under concurrent requests; it and the redemption insert happen in one transaction. No fulfillment mechanism yet — v1 catalog items are placeholders (real merchant integration is in the v2 backlog).
 
 **Places** ([`src/db/placesRepo.ts`](./src/db/placesRepo.ts)) — campus buildings/POIs with admin-curated aliases (the informal names students actually use), matched case-insensitively. No fuzzy matching — if nothing matches, the client falls back to the user tapping the map.
 
-**Parking** ([`src/db/parkingSpotsRepo.ts`](./src/db/parkingSpotsRepo.ts)) — one-spot pilot proving the sensor → backend → map pipeline; `POST /parking-spots/:id/status` is authenticated by a shared `SENSOR_API_KEY` rather than a user JWT, since the caller is a sensor, not a person.
+**Parking** ([`src/db/parkingSpotsRepo.ts`](./src/db/parkingSpotsRepo.ts), [`src/db/parkingLotsRepo.ts`](./src/db/parkingLotsRepo.ts)) — sensors report per *spot*; the API aggregates per *lot*, so the map can show "North Deck: 142 free" without the client fetching every spot. `POST /parking-spots/:id/status` is authenticated by a shared `SENSOR_API_KEY` rather than a user JWT, since the caller is a sensor, not a person. Counts are computed in one grouped query, never stored — and a spot whose sensor has been quiet longer than `SENSOR_STALE_AFTER` (15 min) counts as `unknown` instead of free, because a dead sensor otherwise leaves a stale `free` propping up the count indefinitely. Lots and spots are created by admins; the physical sensor rollout is still the limiting factor, not the schema.
+
+**Weather** ([`src/services/weatherService.ts`](./src/services/weatherService.ts)) — current conditions from the Google Weather API, behind a 10-minute in-process cache keyed by rounded coordinates (each stateless instance keeps its own; it's read-only display data, so drift between instances is harmless). The walk/bike-friendliness judgment lives server-side in the pure `assessBikeConditions` so web and mobile can't disagree about it.
 
 ## API reference
 
@@ -69,13 +76,20 @@ All bodies/responses are JSON. Authenticated routes take `Authorization: Bearer 
 | `PATCH /redemptions/catalog/:id` | admin | edit / activate / deactivate an item |
 | `POST /redemptions` | user | spend points on `{ catalogItemId }` |
 | `GET /redemptions` | user | caller's redemption history |
+| `GET /parking-lots` | — | lots with live free/occupied/unknown counts |
+| `GET /parking-lots/:id/spots` | — | per-spot detail within one lot, incl. level |
+| `POST /parking-lots` | admin | create a lot |
+| `POST /parking-spots` | admin | create a spot, optionally attached to a lot |
 | `GET /parking-spots` | — | current status of all pilot spots |
 | `POST /parking-spots/:id/status` | sensor key | sensor posts a status update |
+| `GET /weather?lat=&lng=` | — | current conditions; defaults to campus centre |
 
 ## Known gaps (not bugs, just not built yet)
 
-- **No CORS middleware** — fine for curl/server-to-server today, will need `cors` once a browser frontend calls this cross-origin.
-- **No frontend** — nothing in this repo renders any of this yet; see the v2 backlog and design doc for the planned React web + React Native mobile clients.
+- **CORS is an allow-list, not a reflector** — `CORS_ORIGIN` (comma-separated, defaults to `http://localhost:5173`) must name every origin the browser clients are served from. Deliberately not `origin: true`: this API hands out bearer tokens, so reflecting any origin would let a hostile page spend a signed-in user's points.
 - **Own-graph routing is scoped to campus + ~3km** — intentional (see Architecture above), but means walk/bike routing beyond that radius will fail to find a path rather than falling back to Google.
 - **Reward verification trusts a client-supplied GPS trace** — the adherence/speed/smoothness heuristics in `tripVerification.ts` catch naive spoofing, but a scripted client fabricating a plausible trace could still farm points (bounded by the daily trip cap). Real mitigation is device attestation or live server-side location pings, not a quick fix — see the ML section of the v2 backlog for the data-collection angle on this.
-- Everything else deferred out of v1 (motorcycle-taxi matching, public bike queue, full parking rollout, real merchant redemption, ML) is tracked in [`idea/2026-09-11-v2-backlog.md`](../idea/2026-09-11-v2-backlog.md).
+- **Parking counts are only as real as the sensors** — the lot aggregate is built and correct, but it can only count spots that actually have hardware reporting. Seeded spots without sensors read as `unknown` forever, which is honest but means a demo lot won't show meaningful free counts until sensors (or a manual script) post for them.
+- **Elevation needs a graph re-import to appear** — the plumbing ships with elevations absent, reporting zeros, until `npm run import:graph` runs with an elevation key.
+- **No bike-share** — the design mockups show bikeshare dock availability; that's still unbuilt and still blocked on physical bike locks. See "Public bicycle queue" in the v2 backlog.
+- Everything else deferred out of v1 (motorcycle-taxi matching, public bike queue, real merchant redemption, ML) is tracked in [`idea/2026-09-11-v2-backlog.md`](../idea/2026-09-11-v2-backlog.md).

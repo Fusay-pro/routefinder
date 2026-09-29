@@ -1,8 +1,10 @@
 import type { Graph, Mode } from '../graph/types.js';
 import { loadGraph } from '../graph/loadGraph.js';
 import { findPath } from '../graph/astar.js';
+import { elevationDelta } from '../graph/geo.js';
 import { isWithinCampus } from './campus.js';
 import { computeGoogleRoute } from './googleRoutes.js';
+import { calculatePoints } from './rewardsService.js';
 
 export interface RouteQuery {
   originLat: number;
@@ -18,6 +20,13 @@ export interface RouteResult {
   seconds: number;
   path?: { lat: number; lng: number }[]; // own-graph only
   polyline?: string; // google only
+  // own-graph only, and only once the graph has been imported with elevation
+  elevationGainMeters?: number;
+  elevationLossMeters?: number;
+  // What this trip is worth *if* it completes and verifies. Not a promise: the
+  // daily cap is per-user and this endpoint is public, so it can't be applied
+  // here. Server-side so clients don't reimplement the formula and drift.
+  estimatedPoints: number;
 }
 
 export async function computeRoute(query: RouteQuery): Promise<RouteResult | null> {
@@ -40,14 +49,17 @@ export async function computeRoute(query: RouteQuery): Promise<RouteResult | nul
     const result = findPath(graph, originNodeId, destNodeId, travelMode);
     if (!result) return null;
 
+    const pathNodes = result.nodeIds.map((id) => graph.nodes.get(id)!);
+    const { gainMeters, lossMeters } = elevationDelta(pathNodes);
+
     return {
       source: 'own-graph',
       distanceMeters: result.distanceMeters,
       seconds: result.seconds,
-      path: result.nodeIds.map((id) => {
-        const node = graph.nodes.get(id)!;
-        return { lat: node.lat, lng: node.lng };
-      }),
+      path: pathNodes.map((node) => ({ lat: node.lat, lng: node.lng })),
+      elevationGainMeters: gainMeters,
+      elevationLossMeters: lossMeters,
+      estimatedPoints: calculatePoints(travelMode, result.distanceMeters),
     };
   }
 
@@ -57,6 +69,7 @@ export async function computeRoute(query: RouteQuery): Promise<RouteResult | nul
     distanceMeters: googleResult.distanceMeters,
     seconds: googleResult.seconds,
     polyline: googleResult.polyline,
+    estimatedPoints: calculatePoints(travelMode, googleResult.distanceMeters),
   };
 }
 

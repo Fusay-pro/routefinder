@@ -81,16 +81,34 @@ Search matches `places.canonical_name` or any `place_aliases.alias`, both lowerc
 | points_spent | integer | |
 | redeemed_at | timestamptz | |
 
-## parking_spots — v1 pilot, one row today, scales to N without a redesign
+## parking_lots — a deck or surface lot that spots belong to
 
 | column | type | notes |
 |---|---|---|
 | id | uuid PK | |
+| name | text | e.g. "North Deck" |
+| lat / lng | double precision | the lot itself, for map placement |
+| permit_tier | text, nullable | e.g. "A/B"; null = no permit required |
+| created_at / updated_at | timestamptz | |
+
+## parking_spots — one sensor-backed spot
+
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| lot_id | uuid FK → parking_lots, nullable | on delete set null |
 | label | text | e.g. "Lot A – Spot 1" |
+| level | text, nullable | e.g. "L2"; null for surface lots |
 | lat / lng | double precision | |
 | status | enum: `free`, `occupied`, `unknown` | |
 | last_updated | timestamptz | set by the sensor's status-post endpoint |
 | created_at | timestamptz | |
+
+Lot-level counts (`GET /parking-lots`) are aggregated from these rows, never stored. A spot whose
+sensor hasn't reported within `SENSOR_STALE_AFTER` (15 min, in
+[`src/db/parkingLotsRepo.ts`](../src/db/parkingLotsRepo.ts)) counts as `unknown` rather than as
+free — a dead sensor otherwise leaves a stale `free` inflating the count forever. The per-spot
+view still shows the raw last-reported status.
 
 ## Backend scaffold
 

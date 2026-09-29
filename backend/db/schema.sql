@@ -107,14 +107,30 @@ CREATE TABLE redemptions (
 CREATE INDEX idx_redemptions_user_id ON redemptions (user_id);
 
 -- ─────────────────────────────────────────────
--- parking_spots — v1 pilot (1 spot), but scales to N without redesign
+-- parking_lots / parking_spots — sensors report per spot, the API aggregates
+-- per lot. A spot whose sensor has gone quiet counts as unknown, not free —
+-- see SENSOR_STALE_AFTER in src/db/parkingLotsRepo.ts.
 -- ─────────────────────────────────────────────
+CREATE TABLE parking_lots (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         TEXT NOT NULL,
+    lat          DOUBLE PRECISION NOT NULL,
+    lng          DOUBLE PRECISION NOT NULL,
+    permit_tier  TEXT,                      -- e.g. 'A', 'A/B'; null = no permit required
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE parking_spots (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lot_id        UUID REFERENCES parking_lots(id) ON DELETE SET NULL,
     label         TEXT NOT NULL,
+    level         TEXT,                      -- e.g. 'L2'; null for surface lots
     lat           DOUBLE PRECISION NOT NULL,
     lng           DOUBLE PRECISION NOT NULL,
     status        parking_status NOT NULL DEFAULT 'unknown',
     last_updated  TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_parking_spots_lot_id ON parking_spots (lot_id);

@@ -12,7 +12,10 @@ export function loadGraph(): Graph {
     const data = JSON.parse(readFileSync(dataPath, 'utf-8')) as CompactGraphData;
 
     const nodes = new Map<string, GraphNode>(
-      data.nodes.map(([lat, lng], idx) => [String(idx), { id: String(idx), lat, lng }])
+      data.nodes.map(([lat, lng, elevationMeters], idx) => [
+        String(idx),
+        { id: String(idx), lat, lng, elevationMeters },
+      ])
     );
 
     const adjacency = new Map<string, GraphEdge[]>();

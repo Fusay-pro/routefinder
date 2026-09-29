@@ -6,6 +6,11 @@ const CAMPUS_BOUNDS = {
   maxLng: 100.6174686,
 };
 
+export const CAMPUS_CENTER = {
+  lat: (CAMPUS_BOUNDS.minLat + CAMPUS_BOUNDS.maxLat) / 2,
+  lng: (CAMPUS_BOUNDS.minLng + CAMPUS_BOUNDS.maxLng) / 2,
+};
+
 export function isWithinCampus(lat: number, lng: number): boolean {
   return (
     lat >= CAMPUS_BOUNDS.minLat &&

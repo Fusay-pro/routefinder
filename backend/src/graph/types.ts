@@ -4,6 +4,8 @@ export interface GraphNode {
   id: string;
   lat: number;
   lng: number;
+  // Optional: absent until the graph is re-imported with --skip-elevation off.
+  elevationMeters?: number;
 }
 
 export interface GraphEdge {
@@ -25,6 +27,6 @@ export interface Graph {
 // type instead of repeating them on every edge.
 export interface CompactGraphData {
   profiles: { travelModes: Mode[]; speedKmh: Partial<Record<Mode, number>> }[];
-  nodes: [lat: number, lng: number][];
+  nodes: [lat: number, lng: number, elevationMeters?: number][];
   edges: [fromIdx: number, toIdx: number, distanceMeters: number, profileIdx: number][];
 }
