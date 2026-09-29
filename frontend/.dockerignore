@@ -1,0 +1,8 @@
+node_modules
+dist
+.vercel
+vercel.json
+# .env files would override the build arg and bake a stale host into the bundle
+.env
+.env.*
+*.log

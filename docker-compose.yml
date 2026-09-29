@@ -1,0 +1,52 @@
+name: routefinder
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: routefinder
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-routefinder}
+      POSTGRES_DB: routefinder
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Run once, on an empty data volume, in filename order.
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./backend/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./backend/db/demo.sql:/docker-entrypoint-initdb.d/03-demo.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U routefinder -d routefinder']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://routefinder:${POSTGRES_PASSWORD:-routefinder}@db:5432/routefinder
+      PORT: 3000
+      # Dev default so the stack runs out of the box. Set a real one in .env
+      # before this is reachable by anyone else — it signs session tokens.
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-change-me}
+      SENSOR_API_KEY: ${SENSOR_API_KEY:-dev-only-sensor-key}
+      # All optional. Without them: driving routes off campus, the weather pill
+      # and route elevation degrade cleanly; everything else works.
+      GOOGLE_ROUTES_API_KEY: ${GOOGLE_ROUTES_API_KEY:-}
+      GOOGLE_WEATHER_API_KEY: ${GOOGLE_WEATHER_API_KEY:-}
+      GOOGLE_ELEVATION_API_KEY: ${GOOGLE_ELEVATION_API_KEY:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  db-data:
