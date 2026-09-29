@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  /* "No sensor reporting" fill — deliberately unlike both free and occupied. */
+  .bg-hatched {
+    background-image: repeating-linear-gradient(45deg, #bbcabf 0 3px, #dae2fd 3px 6px);
+  }
+}
