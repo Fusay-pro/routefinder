@@ -2,6 +2,15 @@
 
 Date: 2026-09-10
 
+> **Superseded as a statement of product direction** by
+> [`2026-09-29-eco-competition-vision.md`](./2026-09-29-eco-competition-vision.md) — the product is now a
+> campus eco-commute competition, not a wayfinding utility.
+>
+> This document is still accurate and still the reference for *how the system works*: the routing engine,
+> the graph model, trip verification and the points formula all describe what is actually running. Read it
+> for mechanism, not for direction. Sections describing parking and the motorcycle-taxi idea describe
+> features that have been retired from the product story.
+
 ## Problem
 
 Students and staff at the university often choose inefficient commuting paths, making them late to class. Google Maps and similar tools don't reflect campus-specific pedestrian shortcuts, don't compare walking vs. vehicle modes well for a campus context, and can't show real-time local conditions (e.g. construction, or whether an informal transport option is currently available).
