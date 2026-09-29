@@ -1,0 +1,28 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Explore / Home", "x": 0, "y": 0, "w": 390, "h": 844 },
+    { "file": "RouteOptions.dc.html", "title": "Route options", "x": 470, "y": 0, "w": 390, "h": 844 },
+    { "file": "ActiveTrip.dc.html", "title": "Active trip", "x": 940, "y": 0, "w": 390, "h": 844 },
+    { "file": "TripComplete.dc.html", "title": "Trip complete", "x": 1410, "y": 0, "w": 390, "h": 844 },
+    { "file": "Rewards.dc.html", "title": "Rewards", "x": 0, "y": 984, "w": 390, "h": 844 },
+    { "file": "Activity.dc.html", "title": "Activity", "x": 470, "y": 984, "w": 390, "h": 844 },
+    { "file": "States.dc.html", "title": "States reference", "x": 940, "y": 984, "w": 560, "h": 844 }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -150,
+      "w": 520,
+      "text": "RouteFinder — screens matched to what the backend actually serves.\nCelsius, kilometres, no bikeshare, no canopy or indoor shortcuts, no elevation chip (Rangsit is flat).\nPoints: walk 10/km, bike 5/km, nothing for motor vehicles."
+    },
+    {
+      "id": "states-note",
+      "x": 940,
+      "y": 834,
+      "w": 560,
+      "text": "The reference sheet is the part worth arguing with — these are the states the old design had no picture for."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
