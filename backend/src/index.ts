@@ -28,7 +28,7 @@ app.use(redemptionsRouter);
 app.use(leaderboardRouter);
 app.use(facultiesRouter);
 
-const port = Number(process.env.PORT) || 3000;
+const port = Number(process.env.PORT) || 3003;
 app.listen(port, () => {
   console.log(`RouteFinder backend listening on port ${port}`);
 });
